@@ -3,23 +3,34 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
 )
 
 func main() {
 	fmt.Println("Starting the application...")
-	Animals = []Animal{
-		Animal{ID: "1", Name: "Risto", SpeciesID: 1, Birthdate: "2019-01-01"},
-		Animal{ID: "2", Name: "Tuomo", SpeciesID: 2, Birthdate: "2019-02-02"},
-		Animal{ID: "3", Name: "Jari", SpeciesID: 1, Birthdate: "2019-03-03"},
-	}
+
 	handleRequests()
+}
+
+func dbConn() (db *sql.DB) {
+	dbDriver := "mysql"
+	dbUser := "animaldb"
+	dbPass := "dud123"
+	dbName := "animals"
+	db, err := sql.Open(dbDriver, dbUser+":"+dbPass+"@/"+dbName)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	return db
 }
 
 func handleRequests() {
@@ -41,7 +52,6 @@ func homePage(w http.ResponseWriter, r *http.Request) {
 type Animal struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
-	SpeciesID int    `json:"species_id"`
 	Birthdate string `json:"birthdate"`
 }
 
@@ -49,19 +59,47 @@ var Animals []Animal
 
 func getAllAnimals(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Endpoint Hit: getAllAnimals")
+	db := dbConn()
+	fetchAllAnimals(db)
 	json.NewEncoder(w).Encode(Animals)
+}
+
+func fetchAllAnimals(db *sql.DB) {
+	rows, err := db.Query("SELECT * FROM animals")
+	if err != nil {
+		panic(err.Error())
+	}
+
+	for rows.Next() {
+		var animal Animal
+		err = rows.Scan(&animal.ID, &animal.Name, &animal.Birthdate)
+		if err != nil {
+			panic(err.Error())
+		}
+
+		Animals = append(Animals, animal)
+	}
+
+	defer db.Close()
 }
 
 func getAnimal(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Endpoint Hit: getAnimal")
 	vars := mux.Vars(r)
-	key := vars["id"]
+	id := vars["id"]
+	db := dbConn()
+	animal := fetchAnimal(db, id)
+	json.NewEncoder(w).Encode(animal)
+}
 
-	for _, animal := range Animals {
-		if animal.ID == key {
-			json.NewEncoder(w).Encode(animal)
-		}
+func fetchAnimal(db *sql.DB, id string) Animal {
+	var animal Animal
+	err := db.QueryRow("SELECT * FROM animals WHERE id = ?", id).Scan(&animal.ID, &animal.Name, &animal.Birthdate)
+	if err != nil {
+		panic(err.Error())
 	}
+
+	return animal
 }
 
 func createAnimal(w http.ResponseWriter, r *http.Request) {
