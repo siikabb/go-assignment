@@ -55,6 +55,11 @@ type Animal struct {
 	Birthdate string `json:"birthdate"`
 }
 
+type AnimalWithoutID struct {
+	Name      string `json:"name"`
+	Birthdate string `json:"birthdate"`
+}
+
 var Animals []Animal
 
 func getAllAnimals(w http.ResponseWriter, r *http.Request) {
@@ -69,6 +74,8 @@ func fetchAllAnimals(db *sql.DB) {
 	if err != nil {
 		panic(err.Error())
 	}
+
+	Animals = []Animal{}
 
 	for rows.Next() {
 		var animal Animal
@@ -110,12 +117,23 @@ func createAnimal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// fmt.Fprintf(w, "%+v", string(reqBody))
-	var animal Animal
+	var animal AnimalWithoutID
 	json.Unmarshal(reqBody, &animal)
-	Animals = append(Animals, animal)
-
+	db := dbConn()
+	insertAnimal(db, animal)
 	json.NewEncoder(w).Encode(animal)
+}
+
+func insertAnimal(db *sql.DB, animal AnimalWithoutID) {
+	insert, err := db.Prepare("INSERT INTO animals (name, birthdate) VALUES (?, ?)")
+	if err != nil {
+		panic(err.Error())
+	}
+
+	_, err = insert.Exec(animal.Name, animal.Birthdate)
+	if err != nil {
+		panic(err.Error())
+	}
 }
 
 func deleteAnimal(w http.ResponseWriter, r *http.Request) {
