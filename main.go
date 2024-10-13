@@ -140,10 +140,19 @@ func deleteAnimal(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Endpoint Hit: deleteAnimal")
 	vars := mux.Vars(r)
 	id := vars["id"]
-	for index, animal := range Animals {
-		if animal.ID == id {
-			Animals = append(Animals[:index], Animals[index+1:]...)
-		}
+	db := dbConn()
+	removeAnimal(db, id)
+}
+
+func removeAnimal(db *sql.DB, id string) {
+	delete, err := db.Prepare("DELETE FROM animals WHERE id = ?")
+	if err != nil {
+		panic(err.Error())
+	}
+
+	_, err = delete.Exec(id)
+	if err != nil {
+		panic(err.Error())
 	}
 }
 
@@ -157,12 +166,23 @@ func updateAnimal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var updatedAnimal Animal
-	json.Unmarshal(reqBody, &updatedAnimal)
+	var animal Animal
+	json.Unmarshal(reqBody, &animal)
+	animal.ID = id
+	db := dbConn()
+	editAnimal(db, animal)
+	json.NewEncoder(w).Encode(animal)
 
-	for index, animal := range Animals {
-		if animal.ID == id {
-			Animals[index] = updatedAnimal
-		}
+}
+
+func editAnimal(db *sql.DB, animal Animal) {
+	update, err := db.Prepare("UPDATE animals SET name = ?, birthdate = ? WHERE id = ?")
+	if err != nil {
+		panic(err.Error())
+	}
+
+	_, err = update.Exec(animal.Name, animal.Birthdate, animal.ID)
+	if err != nil {
+		panic(err.Error())
 	}
 }
